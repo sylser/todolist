@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
 import '../providers/todo_provider.dart';
+import '../providers/overlay_provider.dart';
+import '../screens/settings_screen.dart';
+import '../widgets/overlay_todo_panel.dart';
 import '../widgets/todo_item_widget.dart';
 
 class MainScreen extends StatefulWidget {
@@ -14,16 +16,25 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   final TextEditingController _textController = TextEditingController();
+  final TextEditingController _noteController = TextEditingController();
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void dispose() {
     _textController.dispose();
+    _noteController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<TodoProvider>(context);
+    final overlayProvider = Provider.of<OverlayProvider>(context);
+
+    if (overlayProvider.isOverlayVisible) {
+      return const OverlayTodoPanel();
+    }
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -36,7 +47,8 @@ class _MainScreenState extends State<MainScreen> {
           borderRadius: BorderRadius.circular(12),
           child: Column(
             children: [
-              _buildHeader(context),
+              _buildHeader(context, overlayProvider),
+              _buildSearchBar(provider),
               _buildCategoryTabs(provider),
               Expanded(
                 child: _buildTodoList(provider),
@@ -49,7 +61,7 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
+  Widget _buildHeader(BuildContext context, OverlayProvider overlayProvider) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
@@ -84,6 +96,35 @@ class _MainScreenState extends State<MainScreen> {
             ),
           ),
           IconButton(
+            icon: const Icon(Icons.settings, color: Colors.white, size: 18),
+            iconSize: 18,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(
+              minWidth: 28,
+              minHeight: 28,
+            ),
+            tooltip: '设置',
+            onPressed: () {
+              showDialog(
+                context: context,
+                barrierDismissible: true,
+                builder: (_) => const SettingsScreen(),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.push_pin_outlined,
+                color: Colors.white, size: 18),
+            iconSize: 18,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(
+              minWidth: 28,
+              minHeight: 28,
+            ),
+            tooltip: '开启悬浮窗',
+            onPressed: () => overlayProvider.showOverlay(),
+          ),
+          IconButton(
             icon: const Icon(Icons.close, color: Colors.white, size: 18),
             iconSize: 18,
             padding: EdgeInsets.zero,
@@ -98,6 +139,27 @@ class _MainScreenState extends State<MainScreen> {
             },
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSearchBar(TodoProvider provider) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      child: TextField(
+        controller: _searchController,
+        decoration: InputDecoration(
+          prefixIcon: const Icon(Icons.search, size: 18),
+          hintText: '搜索标题...',
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          isDense: true,
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        ),
+        onChanged: provider.setSearchQuery,
+        onSubmitted: provider.setSearchQuery,
       ),
     );
   }
@@ -291,7 +353,10 @@ class _MainScreenState extends State<MainScreen> {
           completedTodos.length,
       itemBuilder: (context, index) {
         if (index < activeTodos.length) {
-          return TodoItemWidget(todo: activeTodos[index]);
+          return TodoItemWidget(
+            key: ValueKey(activeTodos[index].id),
+            todo: activeTodos[index],
+          );
         }
 
         if (index == activeTodos.length && completedTodos.isNotEmpty) {
@@ -309,9 +374,22 @@ class _MainScreenState extends State<MainScreen> {
         }
 
         final completedIndex = index - activeTodos.length - 1;
-        return TodoItemWidget(todo: completedTodos[completedIndex]);
+        final todo = completedTodos[completedIndex];
+        return TodoItemWidget(
+          key: ValueKey(todo.id),
+          todo: todo,
+        );
       },
     );
+  }
+
+  void _handleAddTodo(TodoProvider provider) {
+    final title = _textController.text.trim();
+    final note = _noteController.text.trim();
+    if (title.isEmpty) return;
+    provider.addTodo(title, note: note);
+    _textController.clear();
+    _noteController.clear();
   }
 
   Widget _buildInputField(BuildContext context, TodoProvider provider) {
@@ -331,39 +409,61 @@ class _MainScreenState extends State<MainScreen> {
           ),
         ],
       ),
-      child: Row(
+      child: Column(
         children: [
-          Expanded(
-            child: TextField(
-              controller: _textController,
-              decoration: InputDecoration(
-                hintText: '输入待办事项...',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(20),
-                  borderSide: BorderSide.none,
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _textController,
+                  decoration: InputDecoration(
+                    hintText: '输入待办事项...',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      borderSide: BorderSide.none,
+                    ),
+                    filled: true,
+                    fillColor:
+                        Theme.of(context).inputDecorationTheme.fillColor ??
+                            Colors.grey[200],
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 10),
+                  ),
+                  onSubmitted: (value) {
+                    if (value.trim().isNotEmpty) {
+                      _handleAddTodo(provider);
+                    }
+                  },
                 ),
-                filled: true,
-                fillColor: Theme.of(context).inputDecorationTheme.fillColor ??
-                    Colors.grey[200],
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               ),
-              onSubmitted: (value) {
-                if (value.trim().isNotEmpty) {
-                  provider.addTodo(value);
-                  _textController.clear();
-                }
-              },
-            ),
+              const SizedBox(width: 8),
+              IconButton(
+                icon: const Icon(Icons.add_circle),
+                color: Theme.of(context).primaryColor,
+                onPressed: () => _handleAddTodo(provider),
+              ),
+            ],
           ),
-          const SizedBox(width: 8),
-          IconButton(
-            icon: const Icon(Icons.add_circle),
-            color: Theme.of(context).primaryColor,
-            onPressed: () {
+          const SizedBox(height: 8),
+          TextField(
+            controller: _noteController,
+            minLines: 1,
+            maxLines: 3,
+            decoration: InputDecoration(
+              hintText: '备注（可选）',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+              filled: true,
+              fillColor: Theme.of(context).inputDecorationTheme.fillColor ??
+                  Colors.grey[100],
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            ),
+            onSubmitted: (_) {
               if (_textController.text.trim().isNotEmpty) {
-                provider.addTodo(_textController.text);
-                _textController.clear();
+                _handleAddTodo(provider);
               }
             },
           ),

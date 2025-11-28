@@ -16,11 +16,31 @@ class TodoItemWidget extends StatefulWidget {
 class _TodoItemWidgetState extends State<TodoItemWidget> {
   final TextEditingController _editController = TextEditingController();
   bool _isEditing = false;
+  static const List<String> _weekdayLabels = [
+    '周一',
+    '周二',
+    '周三',
+    '周四',
+    '周五',
+    '周六',
+    '周日',
+  ];
 
   @override
   void initState() {
     super.initState();
     _editController.text = widget.todo.title;
+  }
+
+  @override
+  void didUpdateWidget(covariant TodoItemWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.todo.id != widget.todo.id ||
+        oldWidget.todo.title != widget.todo.title) {
+      if (!_isEditing) {
+        _editController.text = widget.todo.title;
+      }
+    }
   }
 
   @override
@@ -41,6 +61,58 @@ class _TodoItemWidgetState extends State<TodoItemWidget> {
       setState(() {
         _isEditing = false;
       });
+    }
+  }
+
+  String _formatDate(DateTime date) {
+    final weekday = _weekdayLabels[(date.weekday - 1) % 7];
+    final time = DateFormat('MM-dd HH:mm').format(date);
+    return '$time $weekday';
+  }
+
+  Future<void> _editNote(BuildContext context, TodoProvider provider) async {
+    final controller = TextEditingController(text: widget.todo.note);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        contentPadding: EdgeInsets.zero,
+        content: SizedBox(
+          width: 640,
+          height: 420,
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: TextField(
+              controller: controller,
+              expands: true,
+              minLines: null,
+              maxLines: null,
+              autofocus: true,
+              textInputAction: TextInputAction.newline,
+              decoration: const InputDecoration(
+                hintText: '输入备注内容',
+                border: OutlineInputBorder(),
+                contentPadding:
+                    EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              ),
+            ),
+          ),
+        ),
+        actionsPadding:
+            const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            child: const Text('保存'),
+          ),
+        ],
+      ),
+    );
+    if (result != null) {
+      await provider.updateNote(widget.todo.id, result);
     }
   }
 
@@ -76,9 +148,8 @@ class _TodoItemWidgetState extends State<TodoItemWidget> {
               Text(
                 priority.label,
                 style: TextStyle(
-                  color: widget.todo.priority == priority
-                      ? priority.color
-                      : null,
+                  color:
+                      widget.todo.priority == priority ? priority.color : null,
                   fontWeight: widget.todo.priority == priority
                       ? FontWeight.bold
                       : FontWeight.normal,
@@ -89,7 +160,8 @@ class _TodoItemWidgetState extends State<TodoItemWidget> {
         );
       }).toList(),
     ).then((selectedPriority) {
-      if (selectedPriority != null && selectedPriority != widget.todo.priority) {
+      if (selectedPriority != null &&
+          selectedPriority != widget.todo.priority) {
         provider.updatePriority(widget.todo.id, selectedPriority);
       }
     });
@@ -98,7 +170,6 @@ class _TodoItemWidgetState extends State<TodoItemWidget> {
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<TodoProvider>(context);
-    final dateFormat = DateFormat('MM-dd HH:mm');
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -108,32 +179,15 @@ class _TodoItemWidgetState extends State<TodoItemWidget> {
           value: widget.todo.completed,
           onChanged: (_) => provider.toggleTodo(widget.todo.id),
         ),
-        title: _isEditing
-            ? TextField(
-                controller: _editController,
-                autofocus: true,
-                decoration: const InputDecoration(
-                  border: InputBorder.none,
-                  isDense: true,
-                  contentPadding: EdgeInsets.zero,
-                ),
-                onSubmitted: (_) => _finishEditing(provider),
-                onEditingComplete: () => _finishEditing(provider),
-              )
-            : GestureDetector(
-                onTap: _startEditing,
-                child: Text(
-                  widget.todo.title,
-                  style: TextStyle(
-                    decoration: widget.todo.completed
-                        ? TextDecoration.lineThrough
-                        : TextDecoration.none,
-                    color: widget.todo.completed
-                        ? Colors.grey
-                        : null,
-                  ),
-                ),
-              ),
+        title: Text(
+          widget.todo.title,
+          style: TextStyle(
+            decoration: widget.todo.completed
+                ? TextDecoration.lineThrough
+                : TextDecoration.none,
+            color: widget.todo.completed ? Colors.grey : null,
+          ),
+        ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -142,7 +196,8 @@ class _TodoItemWidgetState extends State<TodoItemWidget> {
                 GestureDetector(
                   onTap: () => _showPriorityMenu(context, provider),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
                       color: widget.todo.priority.color.withOpacity(0.2),
                       borderRadius: BorderRadius.circular(4),
@@ -164,7 +219,7 @@ class _TodoItemWidgetState extends State<TodoItemWidget> {
               ],
             ),
             Text(
-              '创建: ${dateFormat.format(widget.todo.createdAt)}',
+              '创建: ${_formatDate(widget.todo.createdAt)}',
               style: TextStyle(
                 fontSize: 10,
                 color: Colors.grey[600],
@@ -172,7 +227,7 @@ class _TodoItemWidgetState extends State<TodoItemWidget> {
             ),
             if (widget.todo.completed && widget.todo.completedAt != null)
               Text(
-                '完成: ${dateFormat.format(widget.todo.completedAt!)}',
+                '完成: ${_formatDate(widget.todo.completedAt!)}',
                 style: TextStyle(
                   fontSize: 10,
                   color: Colors.green[600],
@@ -180,15 +235,24 @@ class _TodoItemWidgetState extends State<TodoItemWidget> {
               ),
           ],
         ),
-        trailing: IconButton(
-          icon: const Icon(Icons.delete_outline, size: 20),
-          color: Colors.red[300],
-          onPressed: () => provider.deleteTodo(widget.todo.id),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.edit_note, size: 20),
+              color: Colors.blueGrey[400],
+              tooltip: '编辑备注',
+              onPressed: () => _editNote(context, provider),
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete_outline, size: 20),
+              color: Colors.red[300],
+              onPressed: () => provider.deleteTodo(widget.todo.id),
+            ),
+          ],
         ),
         dense: true,
       ),
     );
   }
 }
-
-

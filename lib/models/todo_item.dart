@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
 enum Priority {
-  urgent,    // 紧急
-  normal,    // 一般
-  low,       // 不紧急
-  pending,   // 待定
+  urgent, // 紧急
+  normal, // 一般
+  low, // 不紧急
+  pending, // 待定
 }
 
 extension PriorityExtension on Priority {
@@ -56,6 +56,7 @@ class TodoItem {
   final DateTime? completedAt;
   final Priority priority;
   final String categoryId;
+  final String note;
 
   TodoItem({
     required this.id,
@@ -65,6 +66,7 @@ class TodoItem {
     this.completedAt,
     this.priority = Priority.normal,
     this.categoryId = 'default',
+    this.note = '',
   });
 
   TodoItem copyWith({
@@ -75,6 +77,7 @@ class TodoItem {
     DateTime? completedAt,
     Priority? priority,
     String? categoryId,
+    String? note,
   }) {
     return TodoItem(
       id: id ?? this.id,
@@ -84,6 +87,7 @@ class TodoItem {
       completedAt: completedAt ?? this.completedAt,
       priority: priority ?? this.priority,
       categoryId: categoryId ?? this.categoryId,
+      note: note ?? this.note,
     );
   }
 
@@ -96,6 +100,7 @@ class TodoItem {
       'completedAt': completedAt?.toIso8601String(),
       'priority': priority.name,
       'categoryId': categoryId,
+      'note': note,
     };
   }
 
@@ -111,15 +116,18 @@ class TodoItem {
         priority = Priority.normal;
       }
     }
-    
+
     return TodoItem(
       id: json['id'],
       title: json['title'],
       createdAt: DateTime.parse(json['createdAt']),
       completed: json['completed'] ?? false,
-      completedAt: json['completedAt'] != null ? DateTime.parse(json['completedAt']) : null,
+      completedAt: json['completedAt'] != null
+          ? DateTime.parse(json['completedAt'])
+          : null,
       priority: priority,
       categoryId: json['categoryId'] ?? 'default',
+      note: (json['note'] as String?) ?? '',
     );
   }
 }

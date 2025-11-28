@@ -13,16 +13,16 @@ class WindowUtils {
 
   static Future<void> collapseWindow() async {
     if (_isCollapsed) return; // 如果已经收起，直接返回
-    
+
     // 获取当前窗口位置和大小
     final currentPosition = await windowManager.getPosition();
     final currentSize = await windowManager.getSize();
-    
+
     // 计算收起后的位置：保持窗口右上角位置不变
     // 收起后窗口大小为 50x50，所以新位置 = 原位置 + (原宽度 - 50)
     final newX = currentPosition.dx + (currentSize.width - 50);
     final newY = currentPosition.dy;
-    
+
     // 先设置大小，再设置位置，确保窗口在正确位置
     await windowManager.setSize(const Size(50, 50));
     await windowManager.setPosition(Offset(newX, newY));
@@ -32,24 +32,24 @@ class WindowUtils {
     await windowManager.setIgnoreMouseEvents(false);
     // 确保窗口在最前面
     await windowManager.setAlwaysOnTop(true);
-    
+
     // 最后更新状态，确保窗口操作完成后再更新
     _isCollapsed = true;
   }
 
   static Future<void> expandWindow() async {
     if (!_isCollapsed) return; // 如果已经展开，直接返回
-    
+
     // 获取当前窗口位置
     final currentPosition = await windowManager.getPosition();
-    
+
     // 计算展开后的位置：保持窗口右上角位置不变
-    // 展开后窗口大小为 350x500，所以新位置 = 原位置 - (350 - 50)
-    final newX = currentPosition.dx - (350 - 50);
+    // 展开后窗口大小为 420x620，所以新位置 = 原位置 - (420 - 50)
+    final newX = currentPosition.dx - (420 - 50);
     final newY = currentPosition.dy;
-    
+
     // 先设置大小，再设置位置，确保窗口在正确位置
-    await windowManager.setSize(const Size(350, 500));
+    await windowManager.setSize(const Size(420, 620));
     await windowManager.setPosition(Offset(newX, newY));
     // 展开时使用默认透明度
     await windowManager.setOpacity(0.95);
@@ -58,7 +58,7 @@ class WindowUtils {
     await windowManager.setAlwaysOnTop(true);
     // 聚焦窗口
     await windowManager.focus();
-    
+
     // 最后更新状态，确保窗口操作完成后再更新
     _isCollapsed = false;
   }
@@ -107,4 +107,3 @@ class WindowUtils {
     _fallbackTimer = null;
   }
 }
-

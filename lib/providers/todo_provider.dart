@@ -8,23 +8,35 @@ class TodoProvider with ChangeNotifier {
   List<TodoItem> _todos = [];
   List<TodoCategory> _categories = [];
   String _currentCategoryId = 'default';
-  
+  String _searchQuery = '';
+
   static const String _storageKey = 'todos';
   static const String _categoriesKey = 'todo_categories';
 
   List<TodoItem> get todos => List.unmodifiable(_todos);
   List<TodoCategory> get categories => List.unmodifiable(_categories);
   String get currentCategoryId => _currentCategoryId;
-  
+  String get searchQuery => _searchQuery;
+
   List<TodoItem> get activeTodos {
-    final active = _todos.where((todo) => !todo.completed && todo.categoryId == _currentCategoryId).toList();
+    final active = _todos.where((todo) {
+      final matchesCategory = todo.categoryId == _currentCategoryId;
+      final matchesSearch = _searchQuery.isEmpty ||
+          todo.title.toLowerCase().contains(_searchQuery.toLowerCase());
+      return !todo.completed && matchesCategory && matchesSearch;
+    }).toList();
     // 按优先级排序：紧急 > 一般 > 不紧急 > 待定
     active.sort((a, b) => a.priority.order.compareTo(b.priority.order));
     return active;
   }
-  
+
   List<TodoItem> get completedTodos {
-    return _todos.where((todo) => todo.completed && todo.categoryId == _currentCategoryId).toList();
+    return _todos.where((todo) {
+      final matchesCategory = todo.categoryId == _currentCategoryId;
+      final matchesSearch = _searchQuery.isEmpty ||
+          todo.title.toLowerCase().contains(_searchQuery.toLowerCase());
+      return todo.completed && matchesCategory && matchesSearch;
+    }).toList();
   }
 
   TodoProvider() {
@@ -38,7 +50,8 @@ class TodoProvider with ChangeNotifier {
       final String? categoriesJson = prefs.getString(_categoriesKey);
       if (categoriesJson != null) {
         final List<dynamic> decoded = json.decode(categoriesJson);
-        _categories = decoded.map((item) => TodoCategory.fromJson(item)).toList();
+        _categories =
+            decoded.map((item) => TodoCategory.fromJson(item)).toList();
       } else {
         // 初始化默认分类
         _categories = [
@@ -113,7 +126,7 @@ class TodoProvider with ChangeNotifier {
     }
   }
 
-  Future<void> addTodo(String title) async {
+  Future<void> addTodo(String title, {String? note}) async {
     if (title.trim().isEmpty) return;
 
     final todo = TodoItem(
@@ -121,6 +134,7 @@ class TodoProvider with ChangeNotifier {
       title: title.trim(),
       createdAt: DateTime.now(),
       categoryId: _currentCategoryId,
+      note: note?.trim() ?? '',
     );
 
     _todos.insert(0, todo);
@@ -133,7 +147,7 @@ class TodoProvider with ChangeNotifier {
     if (index != -1) {
       final currentTodo = _todos[index];
       final newCompleted = !currentTodo.completed;
-      
+
       _todos[index] = currentTodo.copyWith(
         completed: newCompleted,
         completedAt: newCompleted ? DateTime.now() : null,
@@ -158,6 +172,15 @@ class TodoProvider with ChangeNotifier {
     }
   }
 
+  Future<void> updateNote(String id, String note) async {
+    final index = _todos.indexWhere((todo) => todo.id == id);
+    if (index != -1) {
+      _todos[index] = _todos[index].copyWith(note: note.trim());
+      notifyListeners();
+      await _saveTodos();
+    }
+  }
+
   Future<void> updatePriority(String id, Priority priority) async {
     final index = _todos.indexWhere((todo) => todo.id == id);
     if (index != -1) {
@@ -173,6 +196,11 @@ class TodoProvider with ChangeNotifier {
       _currentCategoryId = categoryId;
       notifyListeners();
     }
+  }
+
+  void setSearchQuery(String query) {
+    _searchQuery = query.trim();
+    notifyListeners();
   }
 
   Future<void> addCategory(String name) async {
@@ -247,7 +275,8 @@ class TodoProvider with ChangeNotifier {
 
       // 确保当前分类存在
       if (!_categories.any((cat) => cat.id == _currentCategoryId)) {
-        _currentCategoryId = _categories.isNotEmpty ? _categories[0].id : 'default';
+        _currentCategoryId =
+            _categories.isNotEmpty ? _categories[0].id : 'default';
       }
 
       notifyListeners();
@@ -272,7 +301,7 @@ class TodoProvider with ChangeNotifier {
       ),
     ];
     _currentCategoryId = 'default';
-    
+
     notifyListeners();
     await _saveTodos();
     await _saveCategories();
@@ -285,5 +314,3 @@ class TodoProvider with ChangeNotifier {
     notifyListeners();
   }
 }
-
-

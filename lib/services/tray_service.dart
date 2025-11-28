@@ -179,14 +179,14 @@ class TrayService {
         // 验证数据格式
         if (!importData.containsKey('todos') || !importData.containsKey('categories')) {
           debugPrint('导入文件格式不正确');
-          return;
-        }
+        return;
+      }
 
-        // 保存数据
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('todos', json.encode(importData['todos'] ?? []));
-        await prefs.setString(
-            'todo_categories', json.encode(importData['categories'] ?? []));
+      // 保存数据
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('todos', json.encode(importData['todos'] ?? []));
+      await prefs.setString(
+          'todo_categories', json.encode(importData['categories'] ?? []));
 
         debugPrint('数据已从 $filePath 导入');
       } else {
