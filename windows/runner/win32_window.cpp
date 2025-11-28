@@ -16,6 +16,16 @@ namespace {
 #define DWMWA_USE_IMMERSIVE_DARK_MODE 20
 #endif
 
+/// Window attribute for non-client rendering policy.
+#ifndef DWMWA_NCRENDERING_POLICY
+#define DWMWA_NCRENDERING_POLICY 2
+#endif
+
+/// Non-client rendering policy values.
+#ifndef DWMNCRP_ENABLED
+#define DWMNCRP_ENABLED 1
+#endif
+
 constexpr const wchar_t kWindowClassName[] = L"FLUTTER_RUNNER_WIN32_WINDOW";
 
 /// Registry key for app theme preference.
@@ -134,7 +144,8 @@ bool Win32Window::Create(const std::wstring& title,
   UINT dpi = FlutterDesktopGetDpiForMonitor(monitor);
   double scale_factor = dpi / 96.0;
 
-  HWND window = CreateWindow(
+  HWND window = CreateWindowEx(
+      WS_EX_LAYERED,
       window_class, title.c_str(), WS_OVERLAPPEDWINDOW,
       Scale(origin.x, scale_factor), Scale(origin.y, scale_factor),
       Scale(size.width, scale_factor), Scale(size.height, scale_factor),
@@ -145,12 +156,35 @@ bool Win32Window::Create(const std::wstring& title,
   }
 
   UpdateTheme(window);
+  
+  // Enable transparency support
+  SetLayeredWindowAttributes(window, 0, 255, LWA_ALPHA);
+
+  // Enable native Windows shadow effect
+  // This must be done after window creation but before showing
+  MARGINS margins = {0, 0, 0, 0};
+  DwmExtendFrameIntoClientArea(window, &margins);
+  
+  // Enable DWM shadow for the window
+  BOOL enable = TRUE;
+  DwmSetWindowAttribute(window, DWMWA_NCRENDERING_POLICY, &enable, sizeof(enable));
 
   return OnCreate();
 }
 
 bool Win32Window::Show() {
-  return ShowWindow(window_handle_, SW_SHOWNORMAL);
+  bool result = ShowWindow(window_handle_, SW_SHOWNORMAL);
+  
+  // Re-enable shadow after showing window to ensure it persists
+  // This is needed because some operations (like setAsFrameless) may disable shadow
+  if (window_handle_) {
+    MARGINS margins = {0, 0, 0, 0};
+    DwmExtendFrameIntoClientArea(window_handle_, &margins);
+    BOOL enable = TRUE;
+    DwmSetWindowAttribute(window_handle_, DWMWA_NCRENDERING_POLICY, &enable, sizeof(enable));
+  }
+  
+  return result;
 }
 
 // static

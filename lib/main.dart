@@ -8,6 +8,7 @@ import 'models/todo_item.dart';
 import 'providers/todo_provider.dart';
 import 'screens/main_screen.dart';
 import 'services/tray_service.dart';
+import 'services/reminder_service.dart';
 import 'screens/settings_screen.dart';
 
 // 全局导航键，用于在托盘菜单回调中显示对话框
@@ -24,11 +25,6 @@ void main() async {
     debugPrint('无法加载托盘图标: $e');
   }
 
-  // 加载保存的设置
-  final prefs = await SharedPreferences.getInstance();
-  final opacity = prefs.getDouble('window_opacity') ?? 0.95;
-  final ignoreMouseEvents = prefs.getBool('ignore_mouse_events') ?? false;
-
   WindowOptions windowOptions = const WindowOptions(
     size: Size(350, 500),
     minimumSize: Size(300, 400),
@@ -41,19 +37,36 @@ void main() async {
   windowManager.waitUntilReadyToShow(windowOptions, () async {
     await windowManager.setAsFrameless();
     
-    // 设置初始位置到屏幕右上角
+    // 先显示窗口
+    await windowManager.show();
+    
+    // 等待窗口完全显示后再设置位置
+    await Future.delayed(const Duration(milliseconds: 50));
+    
+    // 设置初始位置到屏幕正中间
     final views = ui.PlatformDispatcher.instance.views;
     if (views.isNotEmpty) {
       final display = views.first;
       final screenWidth = display.physicalSize.width / display.devicePixelRatio;
-      await windowManager.setPosition(Offset(screenWidth - 350, 0));
+      final screenHeight = display.physicalSize.height / display.devicePixelRatio;
+      // 窗口大小为 350x500，计算居中位置（确保在屏幕正中间）
+      final centerX = (screenWidth - 350) / 2;
+      final centerY = (screenHeight - 500) / 2;
+      // 确保位置不为负数
+      await windowManager.setPosition(
+        Offset(centerX.clamp(0.0, double.infinity), centerY.clamp(0.0, double.infinity)),
+      );
     }
     
-    await windowManager.show();
     await windowManager.focus();
-    await windowManager.setOpacity(opacity);
-    await windowManager.setIgnoreMouseEvents(ignoreMouseEvents);
+    await windowManager.setOpacity(0.95);
+    await windowManager.setIgnoreMouseEvents(false);
     await windowManager.setAlwaysOnTop(true);
+    
+    // 延迟一点后重新启用阴影，确保在所有操作完成后阴影仍然存在
+    await Future.delayed(const Duration(milliseconds: 100));
+    // 通过重新设置窗口属性来确保阴影保持
+    await windowManager.setAsFrameless();
   });
 
   // 初始化系统托盘
@@ -78,6 +91,8 @@ class _MyAppState extends State<MyApp> with TrayListener {
 
   @override
   void dispose() {
+    // 停止提醒服务
+    ReminderService.stop();
     trayManager.removeListener(this);
     super.dispose();
   }
@@ -110,21 +125,42 @@ class _MyAppState extends State<MyApp> with TrayListener {
       // 使用全局导航键来显示对话框
       final navigatorContext = navigatorKey.currentContext;
       if (navigatorContext != null) {
-        final prefs = await SharedPreferences.getInstance();
-        final opacity = prefs.getDouble('window_opacity') ?? 0.95;
-        final ignoreMouseEvents = prefs.getBool('ignore_mouse_events') ?? false;
-        
         showDialog(
           context: navigatorContext,
           barrierDismissible: true,
-          builder: (context) => SettingsScreen(
-            currentOpacity: opacity,
-            currentIgnoreMouseEvents: ignoreMouseEvents,
-          ),
+          builder: (context) => const SettingsScreen(),
         );
       }
+    } else if (key == 'clear_data') {
+      // 清空数据：先清空存储，然后通知 Provider 更新
+      await TrayService.clearData();
+      
+      // 获取 Provider 并调用 clearData 方法以更新 UI
+      final navigatorContext = navigatorKey.currentContext;
+      if (navigatorContext != null) {
+        final provider = Provider.of<TodoProvider>(navigatorContext, listen: false);
+        await provider.clearData();
+      }
+    } else if (key == 'import_data') {
+      // 导入数据：先显示窗口，然后执行导入
+      await windowManager.show();
+      await windowManager.focus();
+      
+      // 等待窗口显示
+      await Future.delayed(const Duration(milliseconds: 100));
+      
+      // 执行导入
+      await TrayService.importData();
+      
+      // 获取 Provider 并重新加载数据以更新 UI
+      final navigatorContext = navigatorKey.currentContext;
+      if (navigatorContext != null) {
+        final provider = Provider.of<TodoProvider>(navigatorContext, listen: false);
+        // 重新加载数据
+        await provider.reloadData();
+      }
     } else {
-      // 其他菜单项（包括 click_through）由 TrayService 处理
+      // 其他菜单项由 TrayService 处理
       await TrayService.handleTrayAction(key);
     }
   }
@@ -132,7 +168,14 @@ class _MyAppState extends State<MyApp> with TrayListener {
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (_) => TodoProvider(),
+      create: (_) {
+        final provider = TodoProvider();
+        // 启动提醒服务
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          ReminderService.start(provider);
+        });
+        return provider;
+      },
       child: MaterialApp(
         navigatorKey: navigatorKey,
         title: 'Todo List',

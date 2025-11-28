@@ -170,6 +170,14 @@ class _TodoItemWidgetState extends State<TodoItemWidget> {
                 color: Colors.grey[600],
               ),
             ),
+            if (widget.todo.completed && widget.todo.completedAt != null)
+              Text(
+                '完成: ${dateFormat.format(widget.todo.completedAt!)}',
+                style: TextStyle(
+                  fontSize: 10,
+                  color: Colors.green[600],
+                ),
+              ),
           ],
         ),
         trailing: IconButton(

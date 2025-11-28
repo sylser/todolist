@@ -53,14 +53,18 @@ class TodoItem {
   final String title;
   final DateTime createdAt;
   final bool completed;
+  final DateTime? completedAt;
   final Priority priority;
+  final String categoryId;
 
   TodoItem({
     required this.id,
     required this.title,
     required this.createdAt,
     this.completed = false,
+    this.completedAt,
     this.priority = Priority.normal,
+    this.categoryId = 'default',
   });
 
   TodoItem copyWith({
@@ -68,14 +72,18 @@ class TodoItem {
     String? title,
     DateTime? createdAt,
     bool? completed,
+    DateTime? completedAt,
     Priority? priority,
+    String? categoryId,
   }) {
     return TodoItem(
       id: id ?? this.id,
       title: title ?? this.title,
       createdAt: createdAt ?? this.createdAt,
       completed: completed ?? this.completed,
+      completedAt: completedAt ?? this.completedAt,
       priority: priority ?? this.priority,
+      categoryId: categoryId ?? this.categoryId,
     );
   }
 
@@ -85,7 +93,9 @@ class TodoItem {
       'title': title,
       'createdAt': createdAt.toIso8601String(),
       'completed': completed,
+      'completedAt': completedAt?.toIso8601String(),
       'priority': priority.name,
+      'categoryId': categoryId,
     };
   }
 
@@ -107,7 +117,9 @@ class TodoItem {
       title: json['title'],
       createdAt: DateTime.parse(json['createdAt']),
       completed: json['completed'] ?? false,
+      completedAt: json['completedAt'] != null ? DateTime.parse(json['completedAt']) : null,
       priority: priority,
+      categoryId: json['categoryId'] ?? 'default',
     );
   }
 }

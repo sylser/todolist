@@ -31,22 +31,19 @@ class _MainScreenState extends State<MainScreen> {
         decoration: BoxDecoration(
           color: Theme.of(context).scaffoldBackgroundColor,
           borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.2),
-              blurRadius: 10,
-              spreadRadius: 2,
-            ),
-          ],
         ),
-        child: Column(
-          children: [
-            _buildHeader(context),
-            Expanded(
-              child: _buildTodoList(provider),
-            ),
-            _buildInputField(context, provider),
-          ],
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Column(
+            children: [
+              _buildHeader(context),
+              _buildCategoryTabs(provider),
+              Expanded(
+                child: _buildTodoList(provider),
+              ),
+              _buildInputField(context, provider),
+            ],
+          ),
         ),
       ),
     );
@@ -54,7 +51,7 @@ class _MainScreenState extends State<MainScreen> {
 
   Widget _buildHeader(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
         color: Theme.of(context).primaryColor,
         borderRadius: const BorderRadius.only(
@@ -64,8 +61,8 @@ class _MainScreenState extends State<MainScreen> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.checklist, color: Colors.white),
-          const SizedBox(width: 8),
+          const Icon(Icons.checklist, color: Colors.white, size: 18),
+          const SizedBox(width: 6),
           Expanded(
             child: GestureDetector(
               behavior: HitTestBehavior.translucent,
@@ -79,7 +76,7 @@ class _MainScreenState extends State<MainScreen> {
                   '待办事项',
                   style: TextStyle(
                     color: Colors.white,
-                    fontSize: 18,
+                    fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -87,18 +84,173 @@ class _MainScreenState extends State<MainScreen> {
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.close, color: Colors.white),
-            iconSize: 20,
+            icon: const Icon(Icons.close, color: Colors.white, size: 18),
+            iconSize: 18,
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(
-              minWidth: 32,
-              minHeight: 32,
+              minWidth: 28,
+              minHeight: 28,
             ),
             tooltip: '关闭到系统托盘',
             onPressed: () async {
               // 隐藏窗口到系统托盘
               await windowManager.hide();
             },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCategoryTabs(TodoProvider provider) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      color: Theme.of(context).cardColor,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            ...provider.categories.map((category) {
+              final isSelected = provider.currentCategoryId == category.id;
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                child: InkWell(
+                  onTap: () {
+                    provider.setCurrentCategory(category.id);
+                  },
+                  onLongPress: () {
+                    if (category.id != 'default') {
+                      _showCategoryMenu(provider, category.id, category.name);
+                    }
+                  },
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? Theme.of(context).primaryColor
+                          : Colors.grey[200],
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      children: [
+                        Text(
+                          category.name,
+                          style: TextStyle(
+                            color: isSelected ? Colors.white : Colors.black87,
+                            fontWeight: isSelected
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                          ),
+                        ),
+                        if (category.id != 'default' && isSelected)
+                          IconButton(
+                            icon: const Icon(Icons.close, size: 16),
+                            color: Colors.white,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            onPressed: () {
+                              provider.deleteCategory(category.id);
+                            },
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+            IconButton(
+              icon: const Icon(Icons.add),
+              color: Theme.of(context).primaryColor,
+              onPressed: () {
+                _showAddCategoryDialog(provider);
+              },
+              tooltip: '添加分类',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showCategoryMenu(
+      TodoProvider provider, String categoryId, String categoryName) {
+    showMenu(
+      context: context,
+      position: RelativeRect.fromLTRB(0, 100, 0, 0),
+      items: [
+        PopupMenuItem(
+          child: const Text('重命名'),
+          onTap: () {
+            _showRenameCategoryDialog(provider, categoryId, categoryName);
+          },
+        ),
+        PopupMenuItem(
+          child: const Text('删除'),
+          onTap: () {
+            provider.deleteCategory(categoryId);
+          },
+        ),
+      ],
+    );
+  }
+
+  void _showAddCategoryDialog(TodoProvider provider) {
+    final TextEditingController controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('添加分类'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(hintText: '分类名称'),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (controller.text.trim().isNotEmpty) {
+                provider.addCategory(controller.text);
+                Navigator.pop(context);
+              }
+            },
+            child: const Text('添加'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showRenameCategoryDialog(
+      TodoProvider provider, String categoryId, String currentName) {
+    final TextEditingController controller =
+        TextEditingController(text: currentName);
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('重命名分类'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(hintText: '新分类名称'),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (controller.text.trim().isNotEmpty) {
+                provider.updateCategory(categoryId, controller.text);
+                Navigator.pop(context);
+              }
+            },
+            child: const Text('保存'),
           ),
         ],
       ),
@@ -134,7 +286,9 @@ class _MainScreenState extends State<MainScreen> {
 
     return ListView.builder(
       padding: const EdgeInsets.all(8),
-      itemCount: activeTodos.length + (completedTodos.isNotEmpty ? 1 : 0) + completedTodos.length,
+      itemCount: activeTodos.length +
+          (completedTodos.isNotEmpty ? 1 : 0) +
+          completedTodos.length,
       itemBuilder: (context, index) {
         if (index < activeTodos.length) {
           return TodoItemWidget(todo: activeTodos[index]);
@@ -189,8 +343,10 @@ class _MainScreenState extends State<MainScreen> {
                   borderSide: BorderSide.none,
                 ),
                 filled: true,
-                fillColor: Theme.of(context).inputDecorationTheme.fillColor ?? Colors.grey[200],
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                fillColor: Theme.of(context).inputDecorationTheme.fillColor ??
+                    Colors.grey[200],
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               ),
               onSubmitted: (value) {
                 if (value.trim().isNotEmpty) {
@@ -216,4 +372,3 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 }
-
